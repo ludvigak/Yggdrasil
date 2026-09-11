@@ -8,9 +8,9 @@ include(joinpath(YGGDRASIL_DIR, "platforms", "microarchitectures.jl"))
 include(joinpath(YGGDRASIL_DIR, "platforms", "macos_sdks.jl"))
 
 name = "finufft"
-version = v"2.5.1"
-commit_hash = "679d9ae59fe0146c50da360e5a3fee70ae3aa646"
-preferred_gcc_version = v"10"
+version = v"2.6.0"
+commit_hash = "287ad85a1b3a466a082d61704ea4848d288376d3" # CURRENT MASTER, NOT 2.6.0
+preferred_gcc_version = v"11"
 preferred_llvm_version = v"13.0.1+1"
 
 # Collection of sources required to complete build
@@ -23,10 +23,19 @@ script = raw"""
 cd $WORKSPACE/srcdir/finufft*/
 apk del cmake
 
+# BinaryBuilder's aarch64 sysroot lacks the AT_HWCAP2 definition expected by
+# xsimd 14.3.0. AT_HWCAP2 is Linux auxv entry 26.
+export CXXFLAGS="${CXXFLAGS} -DAT_HWCAP2=26"
+
+if [[ "${target}" == *-freebsd* ]]; then
+    # Core detection not working on FreeBSD, and warning kills compilation
+    export CXXFLAGS="${CXXFLAGS} -Wno-error=#warnings"
+fi
+
 toolchain="${CMAKE_TARGET_TOOLCHAIN}"
 if [[ "${target}" == *-apple-* ]]; then
     toolchain="${CMAKE_TARGET_TOOLCHAIN%.*}_gcc.cmake"
-    
+
     # Apparently, we also need to remove the -ld_classic link option
     sed -i '/add_link_options("-ld_classic")/d' src/CMakeLists.txt
 fi
@@ -83,7 +92,7 @@ dependencies = [
     Dependency(PackageSpec(name="CompilerSupportLibraries_jll", uuid="e66e0078-7015-5450-92f7-15fbd957f2ae"); platforms=filter(!Sys.isfreebsd, platforms)),
     Dependency(PackageSpec(name="LLVMOpenMP_jll", uuid="1d63c593-3942-5779-bab2-d838dc0a180e"); platforms=filter(Sys.isfreebsd, platforms)),
     # CMake needs higher version than what is bundled.
-    HostBuildDependency(PackageSpec(; name="CMake_jll", version = v"3.24.3+0")),
+    HostBuildDependency(PackageSpec(; name="CMake_jll", version = v"3.31.9+0")),
 
 ]
 
